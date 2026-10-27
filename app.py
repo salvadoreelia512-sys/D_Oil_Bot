@@ -87,19 +87,52 @@ def dashboard():
         except ValueError as exc:
             st.error("HOLD - "+str(exc))
             return
-    cols = st.columns(3)
-    cols[0].metric("CL quote, USD/bbl", f'{inputs["price"]["value"]:.2f}')
-    cols[1].metric("Arithmetic sigma, USD/bbl/sqrt(year)", f'{sim["sigma"]:.2f}')
-    cols[2].metric("90% model endpoint range", f'{result["low"]:.2f} to {result["high"]:.2f}')
-    st.caption(f'Quote timestamp: {inputs["price"]["date"]}. Public refresh checks every 60 seconds; zero-delay data are not guaranteed.')
-    st.subheader(("DEMO - " if is_demo else "Unvalidated model action - ")+result["action"])
-    st.write("; ".join(result["blockers"]) if result["blockers"] else
-             "Model distribution and completed-history band rule. No established profitable edge.")
-    st.write(f'Model terminal shares after assumed $0.04/bbl costs: Up {result["up"]:.1%}; Down {result["down"]:.1%}. Remaining paths are inside the cost band.')
-    if result["tp"] is not None:
-        st.write(f'Illustrative TP ${result["tp"]:.2f}; SL ${result["sl"]:.2f} per barrel.')
+
+    action = result["action"]
+    is_long = action in ("LONG NOW", "STRONG LONG")
+    is_short = action in ("SELL NOW", "STRONG SHORT")
+
+    if is_long or is_short:
+        st.header("LONG NOW" if is_long else "SHORT NOW")
+        st.subheader(
+            f'Hold until ${result["tp"]:.2f}/barrel'
+        )
+        st.write(
+            f'Entry reference: ${inputs["price"]["value"]:.2f}'
+            f' · Stop: ${result["sl"]:.2f}/barrel'
+        )
+        st.caption(
+            "Paper-trading scenario. Exit earlier if the stop is reached. "
+            "The target is not a guaranteed future price."
+        )
     else:
-        st.write("TP and SL withheld while HOLD is active.")
+        st.header("WAIT — NO ENTRY")
+        st.write(
+            "The current inputs do not support a directional entry."
+        )
+
+    if is_demo:
+        st.caption("SYNTHETIC DEMO — generated data.")
+
+    st.divider()
+    st.subheader("Model analysis")
+
+    with st.expander("Signal evidence and data checks"):
+        st.write(
+            "; ".join(result["blockers"])
+            if result["blockers"]
+            else "Model distribution and volatility-band rule agree."
+        )
+        st.write(
+            f'Modeled upward share: {result["up"]:.1%}; '
+            f'downward share: {result["down"]:.1%}.'
+        )
+        st.write(
+            f'90% modeled endpoint range: '
+            f'${result["low"]:.2f}–${result["high"]:.2f}.'
+        )
+        st.write(f'Quote timestamp: {inputs["price"]["date"]}')
+        st.write(f'Arithmetic volatility: {sim["sigma"]:.2f}')
     q = sim["bands"]
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=sim["grid"], y=q[:,2], name="95th percentile", line=dict(width=0)))
